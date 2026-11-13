@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>콤보 검색기</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
+<style>
+/* Layout: 게임 창 하나 — 주황 타이틀바, 크림 패널, 주황 콤보 행 */
+:root{
+  --sky:#7fc8e8; --frame:#f28c1c; --frame-dk:#c96a08; --panel:#fff4e0; --row:#f0883a;
+  --row-hi:#ffa24f; --ink:#3a2a1a; --white:#ffffff; --chip:#ffe680; --chip-dk:#d8b020; --navy:#23407a;
+  --pixel:"DotGothic16","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html{padding-block:env(safe-area-inset-top,0px) env(safe-area-inset-bottom,0px)}
+body{margin:0}
+[hidden]{display:none!important}
+body{background:var(--sky);color:var(--ink);font-family:var(--pixel);font-size:16px;
+  background-image:radial-gradient(var(--white) 1.5px,transparent 1.5px);background-size:22px 22px;}
+.wrap{max-width:560px;margin:0 auto;padding-block:20px 40px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));}
+.win{background:var(--panel);border:4px solid var(--frame-dk);border-radius:10px;overflow:hidden;
+  box-shadow:0 5px 0 var(--frame-dk);}
+.bar{background:var(--frame);padding:12px 14px;display:flex;align-items:center;gap:12px;border-bottom:4px solid var(--frame-dk)}
+.badge{background:var(--chip);border:3px solid var(--chip-dk);border-radius:8px;width:44px;height:40px;display:grid;place-items:center;font-size:22px;flex:none}
+.bar h1{margin:0;font-size:22px;font-weight:400;color:var(--white);
+  text-shadow:2px 0 var(--ink),-2px 0 var(--ink),0 2px var(--ink),0 -2px var(--ink);letter-spacing:.02em}
+.bar small{display:block;color:var(--white);font-size:12px;opacity:.95}
+.body{padding:14px;display:flex;flex-direction:column;gap:12px}
+.search{position:relative}
+#q{width:100%;font:inherit;font-size:18px;padding:12px 44px 12px 14px;border:3px solid var(--frame-dk);border-radius:8px;background:var(--white);color:var(--ink);outline:none}
+#q:focus{box-shadow:0 0 0 3px var(--chip)}
+#clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:var(--frame);color:var(--white);font:inherit;width:30px;height:30px;border-radius:6px;cursor:pointer}
+.hint{font-size:13px;color:#8a6a48;margin:0}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:inherit;font-size:14px;border:2px solid var(--chip-dk);background:var(--chip);color:var(--ink);border-radius:6px;padding:5px 9px;cursor:pointer}
+.chip b{font-weight:400;color:var(--frame-dk);margin-left:4px}
+.chip:hover,.chip:focus-visible{background:var(--white);outline:none}
+.head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.head h2{margin:0;font-size:20px;font-weight:400}
+.head span{font-size:14px;color:var(--frame-dk)}
+.list{display:flex;flex-direction:column;gap:4px;border:3px solid #d9cbb0;border-radius:6px;padding:4px;background:var(--white)}
+.row{display:grid;grid-template-columns:44px 1fr auto 1fr;align-items:center;gap:6px;background:var(--row);color:var(--white);padding:9px 8px;border-radius:3px}
+.row .no{font-size:13px;opacity:.9;font-variant-numeric:tabular-nums}
+.row .me{text-align:center;opacity:.75;font-size:14px}
+.row .plus{background:var(--chip);color:var(--frame-dk);border:2px solid var(--chip-dk);border-radius:5px;padding:0 6px;font-size:14px}
+.row button{font:inherit;font-size:16px;background:transparent;border:0;color:var(--white);text-align:center;cursor:pointer;padding:2px;border-radius:4px;text-decoration:underline dotted;text-underline-offset:4px}
+.row button:hover,.row button:focus-visible{background:var(--row-hi);outline:none}
+.empty{padding:18px;text-align:center;color:#8a6a48}
+.note{font-size:12px;color:#8a6a48;margin:0;text-align:center}
+@media (prefers-reduced-motion:no-preference){.row{animation:pop .18s steps(3) both}}
+@keyframes pop{from{transform:translateY(4px);opacity:.4}to{transform:none;opacity:1}}
+.tabs{display:flex;gap:6px}
+.tab{flex:1;font:inherit;font-size:16px;padding:9px;border:3px solid var(--frame-dk);border-radius:8px;background:var(--white);color:var(--frame-dk);cursor:pointer}
+.tab[aria-selected="true"]{background:var(--frame);color:var(--white)}
+.tab:focus-visible{outline:3px solid var(--chip)}
+.sets{display:flex;flex-direction:column;gap:12px}
+.set{background:var(--white);border:3px solid #d9cbb0;border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:8px}
+.set .head h2{font-size:18px}
+.set .mini{display:flex;flex-direction:column;gap:3px}
+.set .mini div{display:flex;gap:8px;font-size:14px;background:var(--row);color:var(--white);padding:5px 8px;border-radius:3px}
+.set .mini span{opacity:.85;min-width:28px;font-variant-numeric:tabular-nums}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <div class="win">
+    <div class="bar">
+      <div class="badge" aria-hidden="true">🤝</div>
+      <div><h1>콤보 검색기</h1><small id="sub"></small></div>
+    </div>
+    <div class="body">
+      <div class="tabs" role="tablist">
+        <button class="tab" id="tab-search" role="tab" aria-selected="true">건물 검색</button>
+        <button class="tab" id="tab-sets" role="tab" aria-selected="false">추천 조합</button>
+      </div>
+      <div id="pane-search" style="display:contents">
+      <div class="search">
+        <input id="q" type="search" autocomplete="off" placeholder="건물 이름 (예: 편의점, ㅍㅇㅈ)" aria-label="건물 검색">
+        <button id="clear" aria-label="지우기">✕</button>
+      </div>
+      <p class="hint" id="hint">초성으로도 찾을 수 있어요. 결과의 건물을 누르면 그 건물 콤보로 넘어갑니다.</p>
+      <div class="chips" id="chips"></div>
+      <div id="result"></div>
+      </div>
+      <div id="pane-sets" class="sets" hidden>
+        <p class="hint">4~7개 건물을 함께 지으면 여러 콤보가 한 번에 발동하는 묶음이에요. 건물을 누르면 검색으로 넘어갑니다.</p>
+        <div id="setlist" class="sets"></div>
+      </div>
+      <p class="note">콤보 리스트 171/171 전체 수록</p>
+    </div>
+  </div>
+</div>
+
+<script>
+const RAW = `1 공원|축구 경기장
+2 운동장|헬스클럽
+3 BBQ그릴|고깃집
+4 방송국|전망 타워
+5 아이스크림 가게|크레이프 가게
+6 사각 정자|초밥집
+7 스파|미용실
+8 스파|미술관
+9 관공서|고층 빌딩
+10 관공서|빌딩
+11 장난감 가게|양화점
+12 과자집|파티세리
+13 성|절
+14 성|놀이공원
+15 푸드트럭|방송국
+16 자동차 매장|주유소
+17 자동차 매장|자동차용품점
+18 카이로 빌딩|자전거 가게
+19 카지노|은행
+20 원형 정자|성
+21 캡슐 뽑기|오락실
+22 카페|꽃집
+23 이글루|스케이트장
+24 버섯집|마법 박물관
+25 캔디 머신|옛날과자 가게
+26 캠핑장|육묘장
+27 양화점|옷 가게
+28 크레이프 가게|호수공원
+29 파티세리|카페
+30 파티세리|도넛 가게
+31 오락실|장난감 가게
+32 게임숍|악기점
+33 게임숍|카이로 빌딩
+34 쓰레기통|편의점
+35 골프장|스키장
+36 골프 연습장|골프장
+37 편의점|우체국
+38 슈퍼마켓|세탁소
+39 슈퍼마켓|생선 가게
+40 슈퍼마켓|채소 가게
+41 스케이트장|양화점
+42 초밥집|동양풍 벤치
+43 자동차용품점|주유소
+44 타워|전망 타워
+45 백화점|가전제품점
+46 도넛 가게|크레이프 가게
+47 도넛 가게|베이커리
+48 햄버거 가게|덮밥집
+49 햄버거 가게|편의점
+50 오토바이 전문점|자동차용품점
+51 오토바이 전문점|주유소
+52 파라솔 의자|바닷가 음식점
+53 해먹|캠핑장
+54 베이커리|피자 가게
+55 비밀기지|오토바이 전문점
+56 비밀기지|아지트
+57 비밀기지|유치원
+58 마천루|빌딩
+59 마천루|백화점
+60 플라네타륨|식물원
+61 플라네타륨|수족관
+62 그네|보트 공원
+63 대형 반려용품점|장난감 가게
+64 대형 반려용품점|목장
+65 대형 반려용품점|반려용품점
+66 벤치|천연 스케이트장
+67 볼링장|스케이트장
+68 보트 공원|호텔
+69 홈센터|토목사무소
+70 우체통|우체국
+71 팝콘 매장|영화관
+72 라면 가게|햄버거 가게
+73 라면 가게|초밥집
+74 라이브 공연장|악기점
+75 라이브 공연장|로켓 발사대
+76 레스토랑|피자 가게
+77 로켓 발사대|UFO 정거장
+78 아지트|자동차 매장
+79 아지트|제약회사
+80 안내소|문구점
+81 영화관|볼링장
+82 야외 수영장|스포츠용품점
+83 온천|산
+84 가구점|홈센터
+85 바닷가 음식점|낚시터
+86 바닷가 음식점|실내 수영장
+87 학교|운동장
+88 학교|도서관
+89 학교|대학교
+90 덮밥집|푸드트럭
+91 생선 가게|라면 가게
+92 생선 가게|채소 가게
+93 경마장|사격장
+94 경마장|복권 매장
+95 경마장|목장
+96 은행|우체국
+97 게시판 지도|UFO 정거장
+98 통신사|가전제품점
+99 통신사|게임숍
+100 결혼식장|고급 호텔
+101 결혼식장|보석점
+102 공원|쓰레기통
+103 공중화장실|도서관
+104 공중전화|골동품 좌판
+105 토목사무소|가구점
+106 고급 호텔|놀이공원
+107 고층 빌딩|은행
+108 골동품 좌판|복권 매장
+109 모래성|유치원
+110 산|부동산
+111 산|캠핑장
+112 산|스키장
+113 실내 수영장|헬스클럽
+114 실내 수영장|야외 수영장
+115 절|오중탑
+116 자전거 가게|푸드트럭
+117 자전거 가게|스포츠용품점
+118 자판기|베이커리
+119 학원|대학교
+120 호텔|카페
+121 호텔|고급 호텔
+122 꽃집|호수공원
+123 꽃집|경단 가게
+124 고깃집|덮밥집
+125 사원|절
+126 사원|골동품 좌판
+127 진료소|약국
+128 식수대|골프 연습장
+129 수족관|동물원
+130 붉은 다리|사원
+131 점집|진료소
+132 점집|마법 박물관
+133 목욕탕|오중탑
+134 목욕탕|낚시터
+135 옛날과자 가게|문구점
+136 경단 가게|옛날과자 가게
+137 경단 가게|목욕탕
+138 낚시터|천연 스케이트장
+139 사격장|점집
+140 전망 타워|레스토랑
+141 동물원|놀이공원
+142 기와성|온천
+143 기와성|오중탑
+144 박물관|식물원
+145 박물관|도서관
+146 밭|천연 스케이트장
+147 밭|육묘장
+148 채소 가게|밭
+149 미술관|박물관
+150 미술관|카지노
+151 미용실|온천
+152 미용실|세탁소
+153 얼음성|스키장
+154 병원|제약회사
+155 병원|약국
+156 병원|진료소
+157 부동산|가구점
+158 부동산|토목사무소
+159 문구점|학원
+160 유치원|반려용품점
+161 복권 매장|사격장
+162 보석점|백화점
+163 목장|반려용품점
+164 마법 박물관|시계탑
+165 야구장|축구 경기장
+166 야구장|스포츠용품점
+167 야구장|골프장
+168 유령의 무덤|제약회사
+169 옷 가게|스파
+170 옷 가게|세탁소
+171 골프 연습장|헬스클럽`;
+
+const combos = RAW.trim().split("\n").map(l=>{
+  const m = l.match(/^(\d+)\s+(.+)\|(.+)$/);
+  return {no:+m[1], a:m[2].trim(), b:m[3].trim()};
+});
+const map = new Map();
+for(const c of combos){
+  for(const [me,other] of [[c.a,c.b],[c.b,c.a]]){
+    if(!map.has(me)) map.set(me,[]);
+    map.get(me).push({no:c.no,other});
+  }
+}
+const names = [...map.keys()].sort((x,y)=>x.localeCompare(y,"ko"));
+
+const CHO = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
+const cho = s => [...s].map(ch=>{const c=ch.charCodeAt(0)-0xAC00;return c>=0&&c<11172?CHO[Math.floor(c/588)]:ch}).join("");
+const norm = s => s.replace(/\s+/g,"").toLowerCase();
+const index = names.map(n=>({n, k:norm(n), c:cho(norm(n))}));
+
+const $ = id => document.getElementById(id);
+const q=$("q"), chips=$("chips"), result=$("result"), hint=$("hint");
+$("sub").textContent = `콤보 ${combos.length}개 · 건물 ${names.length}종`;
+
+function esc(s){return s.replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]))}
+
+function chipHTML(list){
+  return list.map(n=>`<button class="chip" data-n="${esc(n)}">${esc(n)}<b>${map.get(n).length}</b></button>`).join("");
+}
+
+function showBuilding(name){
+  const list = map.get(name).slice().sort((x,y)=>x.no-y.no);
+  result.innerHTML = `<div class="head"><h2>${esc(name)}</h2><span>콤보 ${list.length}개</span></div>
+  <div class="list">${list.map(r=>`<div class="row"><span class="no">${r.no}</span><span class="me">${esc(name)}</span><span class="plus">+</span><button data-n="${esc(r.other)}">${esc(r.other)}</button></div>`).join("")}</div>`;
+}
+
+function render(){
+  const v = norm(q.value);
+  hint.hidden = !!v;
+  if(!v){
+    chips.innerHTML = chipHTML(names);
+    result.innerHTML = "";
+    return;
+  }
+  const exact = index.find(i=>i.k===v);
+  const hits = index.filter(i=>i.k.includes(v)||i.c.includes(v)).map(i=>i.n);
+  if(exact){ chips.innerHTML = hits.length>1?chipHTML(hits.filter(n=>n!==exact.n)):""; showBuilding(exact.n); return; }
+  if(hits.length===1){ chips.innerHTML=""; showBuilding(hits[0]); return; }
+  if(hits.length===0){ chips.innerHTML=""; result.innerHTML=`<div class="empty">"${esc(q.value)}" 건물이 목록에 없어요.</div>`; return; }
+  chips.innerHTML = chipHTML(hits);
+  result.innerHTML = "";
+}
+
+function pick(n){ showTab("search"); q.value=n; render(); window.scrollTo({top:0,behavior:"smooth"}); }
+document.addEventListener("click",e=>{const b=e.target.closest("[data-n]"); if(b) pick(b.dataset.n);});
+q.addEventListener("input",render);
+$("clear").addEventListener("click",()=>{q.value="";render();q.focus();});
+render();
+
+const SETS = [
+  ["자동차 거리", ["자동차 매장","자동차용품점","주유소","오토바이 전문점","비밀기지","아지트","제약회사"]],
+  ["동네 상점가", ["슈퍼마켓","생선 가게","채소 가게","세탁소","미용실","스파","옷 가게"]],
+  ["목장과 경마", ["경마장","사격장","복권 매장","목장","반려용품점","대형 반려용품점","장난감 가게"]],
+  ["산자락 개발", ["산","캠핑장","해먹","부동산","가구점","토목사무소","홈센터"]],
+  ["스포츠 단지", ["야구장","골프장","골프 연습장","헬스클럽","실내 수영장","야외 수영장","스포츠용품점"]],
+  ["디저트 거리", ["카페","파티세리","도넛 가게","크레이프 가게","아이스크림 가게","꽃집","호수공원"]],
+  ["병원과 마법", ["병원","약국","진료소","점집","마법 박물관","시계탑","버섯집"]],
+  ["금융가", ["은행","카지노","고층 빌딩","관공서","빌딩","마천루","백화점"]],
+  ["학교 마을", ["학교","운동장","도서관","대학교","학원","문구점","공중화장실"]],
+  ["일본풍 마을", ["절","오중탑","기와성","온천","목욕탕","사원","붉은 다리"]],
+  ["먹자골목", ["햄버거 가게","라면 가게","덮밥집","고깃집","BBQ그릴","편의점","초밥집"]],
+  ["우주와 공연", ["로켓 발사대","UFO 정거장","게시판 지도","라이브 공연장","악기점","게임숍","통신사"]],
+  ["놀이 거리", ["영화관","팝콘 매장","볼링장","스케이트장","이글루","양화점"]]
+];
+function renderSets(){
+  const html = SETS.map(([title,bs])=>{
+    const s=new Set(bs);
+    const inside=combos.filter(c=>s.has(c.a)&&s.has(c.b)).sort((x,y)=>x.no-y.no);
+    return `<div class="set"><div class="head"><h2>${esc(title)}</h2><span>건물 ${bs.length}개 · 콤보 ${inside.length}개</span></div>
+    <div class="chips">${bs.map(n=>`<button class="chip" data-n="${esc(n)}">${esc(n)}</button>`).join("")}</div>
+    <div class="mini">${inside.map(c=>`<div><span>${c.no}</span>${esc(c.a)} + ${esc(c.b)}</div>`).join("")}</div></div>`;
+  }).join("");
+  $("setlist").innerHTML = html;
+}
+function showTab(which){
+  const isSets = which==="sets";
+  $("tab-search").setAttribute("aria-selected", String(!isSets));
+  $("tab-sets").setAttribute("aria-selected", String(isSets));
+  $("pane-search").hidden = isSets;
+  $("pane-sets").hidden = !isSets;
+}
+$("tab-search").addEventListener("click",()=>showTab("search"));
+$("tab-sets").addEventListener("click",()=>showTab("sets"));
+renderSets();
+</script>
+</body>
+</html>
+
